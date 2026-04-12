@@ -43,9 +43,6 @@ The game is designed with a strong emphasis on clean OOP architecture, an MVC pa
 | Member | Responsibility |
 |--------|---------------|
 | [Daksh] | Networking — ServerThread, ClientThread, action serialization, Engine Manager |
-| [Name 2] | Engine Core — Board, Pieces, move generation |
-| [Name 3] | Rules Engine — check/checkmate logic, Game state machine, Timer |
-| [Name 4] | GUI & Controller — JavaFX BoardView, GameController integration |
 
 ---
 
