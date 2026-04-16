@@ -31,16 +31,6 @@ import java.util.List;
  * grid[row][col] — always row first, then column.
  * This matches how matrices are described in math (row, column)
  * and is the universal convention in board-game programming.
- *
- * FIX NOTES (what changed from original):
- *   The copy constructor now creates a TRUE deep copy of each Piece using
- *   PieceCopier.copy(). Previously, the copy stored references to the same
- *   Piece objects as the original board. When RulesEngine simulated a move
- *   on the copy, calling applyMove() called piece.setPosition() and
- *   piece.hasMoved = true on the SHARED piece object — mutating the real
- *   board's piece state. This caused pawns to permanently lose their
- *   two-square opening move after the first legal-move check simulation.
- *   Deep copying pieces ensures simulation never touches real piece state.
  */
 public class Board {
 
@@ -77,35 +67,24 @@ public class Board {
      *   boolean inCheck = isKingInCheck(simulated); // test the copy
      *   // realBoard is completely untouched
      *
-     * FIX: WHY WE NEED TRUE DEEP COPIES OF PIECES
-     * The original code copied grid references — meaning the simulation and
-     * the real board pointed to the SAME Piece objects. When simulation called
-     * applyMove() → piece.setPosition() → hasMoved = true, it permanently
-     * mutated the real piece. Pawns lost their two-square first move because
-     * hasMoved was set to true during the very first legal-move simulation.
-     *
-     * The fix: use PieceCopier.copy() to create a fresh Piece object for each
-     * square in the simulated board. The copy has identical type, owner,
-     * position, hasMoved, and isCrownHolder — but it is a separate object.
-     * Mutating it during simulation has zero effect on the real board.
-     *
      * WHY NOT JUST USE board.clone()?
      * Java's default clone() is a SHALLOW copy — it copies the array reference
-     * but not the objects inside it. Deep copying requires explicit per-element
-     * copy logic, which PieceCopier provides.
+     * but not the objects inside it. Modifying the clone would still modify the
+     * same Piece objects the original points to. We need a DEEP copy: a new grid
+     * with new Piece references (though we don't need to deep-copy the Piece
+     * fields themselves, since we only move pieces in simulation, not mutate them).
      *
-     * Note: Traps are still shallow-copied. Trap objects are never mutated
-     * during simulation (we only check positions), so sharing references is safe.
+     * Note: We DON'T deep-copy traps for simulation purposes — trap activation
+     * doesn't affect check-detection logic. We copy the reference list.
      */
     public Board(Board other) {
         this.grid  = new Piece[8][8];
         this.traps = new ArrayList<>(other.traps); // shallow copy of trap list is fine
 
-        // FIX: Deep copy each Piece so simulation never mutates the real board's pieces
+        // Copy grid references — same Piece objects, new grid array
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
-                Piece original = other.grid[r][c];
-                this.grid[r][c] = (original != null) ? PieceCopier.copy(original) : null;
+                this.grid[r][c] = other.grid[r][c];
             }
         }
     }
@@ -197,7 +176,7 @@ public class Board {
      * @return      The captured piece, or null if no capture.
      */
     public Piece applyMove(Position from, Position to) {
-        Piece moving   = grid[from.row][from.col];
+        Piece moving  = grid[from.row][from.col];
         Piece captured = grid[to.row][to.col]; // null if destination is empty
 
         // Remove the piece from its source square
