@@ -3,7 +3,8 @@
     "java.project.outputPath": "out",
     "java.project.referencedLibraries": [
         "lib/javafx/lib/*.jar"
-    ]
+    ],
+    "python-envs.defaultEnvManager": "ms-python.python:system"
 }
 
 
