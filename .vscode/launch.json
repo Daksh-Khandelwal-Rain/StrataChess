@@ -3,6 +3,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "StrataChessAPI",
+            "request": "launch",
+            "mainClass": "networking.StrataChessAPI",
+            "projectName": "StrataChess_5fe1f521"
+        },
+        {
+            "type": "java",
             "name": "Run StrataChess",
             "request": "launch",
             "mainClass": "view.Main",
