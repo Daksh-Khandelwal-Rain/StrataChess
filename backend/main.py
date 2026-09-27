@@ -30,6 +30,7 @@ class CreateMove(BaseModel):
     from_square: str
     to_square: str
     move_number: int
+    move_type: str = "MOVE"
 
 
 # ==============================================================================
@@ -130,11 +131,11 @@ def create_move(game_id: int, body: CreateMove):
         with get_connection() as conn, conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
                 """
-                INSERT INTO moves (game_id, player_id, from_square, to_square, move_number)
-                VALUES (%s, %s, %s, %s, %s) 
-                RETURNING id, game_id, player_id, from_square, to_square, move_number, created_at;
+                INSERT INTO moves (game_id, player_id, from_square, to_square, move_number,move_type)
+                VALUES (%s, %s, %s, %s, %s,%s) 
+                RETURNING id, game_id, player_id, from_square, to_square, move_number,move_type, created_at;
                 """,
-                (game_id, body.player_id, body.from_square, body.to_square, body.move_number)
+                (game_id, body.player_id, body.from_square, body.to_square, body.move_number, body.move_type)
             )
             row = cur.fetchone()
 
@@ -150,3 +151,15 @@ def create_move(game_id: int, body: CreateMove):
             status_code=404, 
             detail="Referenced game or player ID does not exist."
         )
+
+@app.get("/players/by-username/{username}")
+def get_player_by_username(username: str):
+    with get_connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            "SELECT id, username, created_at FROM players WHERE username = %s;",
+            (username,)
+        )
+        row = cur.fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Player not found.")
+        return row

@@ -1,15 +1,17 @@
 package controller;
 
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import engine.Board;
 import engine.Game;
+import engine.Piece;
 import engine.RulesEngine;
-import networking.Server;
 import networking.Client;
+import networking.Server;
 import shared.Action;
 import shared.Position;
-import engine.Piece;
-import engine.Board;
-
-import java.util.List;
+import networking.StrataChessAPI;
 
 /**
  * CONCEPT: The Controller in MVC — The Single Point of Entry
@@ -48,6 +50,13 @@ public class GameController {
     // The local player's ID: 0 = White (host), 1 = Black (guest)
     private final int localPlayerId;
 
+    // DB linkage (Considers only of host)
+    private int dbGameId = -1;
+    private int dbWhitePlayerId = -1;
+    private int dbBlackPlayerId = -1;
+    private final AtomicInteger moveCounter = new AtomicInteger(0);
+
+
     // ── Constructor ───────────────────────────────────────────────────────────
     /**
      * @param game          The fully initialised Game object.
@@ -70,6 +79,15 @@ public class GameController {
         this.client = client;
     }
 
+    // Database connection link 
+    public void setDatabaseIds(int dbGameId, int dbWhitePlayerId, int dbBlackPlayerId){
+        this.dbGameId = dbGameId;
+        this.dbWhitePlayerId = dbWhitePlayerId;
+        this.dbBlackPlayerId = dbBlackPlayerId;
+        System.out.println("[GameController] DB linked -> gameId=" + dbGameId
+            + " white=" + dbWhitePlayerId + " black=" + dbBlackPlayerId);
+    }
+
     // ── GUI → Controller (Local Input) ────────────────────────────────────────
 
     /**
@@ -90,16 +108,8 @@ public class GameController {
      * @return true if the move was accepted by the engine.
      */
     public boolean onPlayerMove(Position from, Position to) {
-        // Only accept input from the local player during their turn
         if (game.getCurrentPlayerId() != localPlayerId) return false;
-
-        Action action = Action.move(localPlayerId, from, to);
-        boolean accepted = game.processAction(action);
-
-        if (accepted) {
-            broadcast(action); // Tell the opponent what happened
-        }
-        return accepted;
+        return applyLocalAction(Action.move(localPlayerId, from, to));
     }
 
     /**
@@ -111,12 +121,7 @@ public class GameController {
      */
     public boolean onPlaceTrap(Position where) {
         if (game.getCurrentPlayerId() != localPlayerId) return false;
-
-        Action action = Action.placeTrap(localPlayerId, where);
-        boolean accepted = game.processAction(action);
-
-        if (accepted) broadcast(action);
-        return accepted;
+        return applyLocalAction(Action.placeTrap(localPlayerId, where));
     }
 
     /**
@@ -128,12 +133,7 @@ public class GameController {
      */
     public boolean onCrownTransfer(Position from, Position to) {
         if (game.getCurrentPlayerId() != localPlayerId) return false;
-
-        Action action = Action.crownTransfer(localPlayerId, from, to);
-        boolean accepted = game.processAction(action);
-
-        if (accepted) broadcast(action);
-        return accepted;
+        return applyLocalAction(Action.crownTransfer(localPlayerId, from, to));
     }
 
     // ── Network → Controller (Remote Input) ───────────────────────────────────
@@ -151,16 +151,59 @@ public class GameController {
      *
      * @param serialized  A serialized action string, e.g. "MOVE|1|1,4|3,4"
      */
+
+    private boolean applyLocalAction(Action action) {
+        boolean accepted = game.processAction(action);
+        if (accepted) {
+            recordMoveToDb(action);
+            broadcast(action);
+        }
+        return accepted;
+    }
+
     public void onRemoteAction(String serialized) {
         try {
             Action action = Action.deserialize(serialized);
-            game.processAction(action);
-            // No broadcast needed — this came FROM the network; don't echo it back
+            boolean accepted = game.processAction(action);
+            if(accepted){
+                recordMoveToDb(action);
+            }
         } catch (Exception e) {
             System.err.println("[GameController] Failed to parse remote action: " + serialized);
             e.printStackTrace();
         }
     }
+
+    /**
+     * Host-only: persists the action as a move row. Runs off-thread so a slow
+     * or unreachable API never stalls gameplay.
+     */
+    private void recordMoveToDb(Action action) {
+    if (server == null) {
+            return; // guest never writes directly — only the host persists
+        }
+    if (dbGameId < 0) {
+            System.err.println("[GameController] Skipping DB write — dbGameId not set. "
+                + "Did Main call setDatabaseIds() after registration?");
+            return;
+        }
+
+    int dbPlayerId = (action.playerId == 0) ? dbWhitePlayerId : dbBlackPlayerId;
+    String fromSquare = (action.from != null) ? action.from.toString() : "-";
+    String toSquare = action.to.toString();
+    int moveNumber = moveCounter.incrementAndGet();
+    String moveType = action.type.name(); // MOVE | PLACE_TRAP | CROWN_TRANSFER
+
+    Thread t = new Thread(() -> {
+        try {
+            StrataChessAPI.createMove(dbGameId, dbPlayerId, fromSquare, toSquare, moveNumber, moveType);
+        } catch (Exception e) {
+            System.err.println("[GameController] Failed to record move to DB: " + e.getMessage());
+        }
+    });
+    t.setDaemon(true);
+    t.start();
+}
 
     // ── Utility: Legal Move Query ─────────────────────────────────────────────
 
