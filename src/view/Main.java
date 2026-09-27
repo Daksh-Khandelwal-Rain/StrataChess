@@ -235,6 +235,18 @@ public class Main extends Application {
 
                 Platform.runLater(() ->
                     statusLabel.setText("Opponent connected! Starting game..."));
+            
+            // Register both players and the game session in the DB.
+            // Wrapped so a down/unreachable API doesn't block actual play.
+            try {
+                int whiteDbId = networking.StrataChessAPI.createPlayer(whiteName);
+                int blackDbId = networking.StrataChessAPI.createPlayer(blackName);
+                int gameDbId = networking.StrataChessAPI.createGame(whiteDbId, blackDbId);
+                controller.setDatabaseIds(gameDbId, whiteDbId, blackDbId);
+            } catch (Exception dbEx) {
+                System.err.println("[Main] DB registration failed, continuing without persistence: "
+                    + dbEx.getMessage());
+            }
 
             } else {
                 // Guest: connect to the host
