@@ -228,19 +228,28 @@ public class Main extends Application {
 
             // ── Setup Network ──────────────────────────────────────────────────
             if (isHost) {
-                // Host: start the server and wait for a client to connect
                 Server server = new Server(controller);
                 controller.attachServer(server);
-                server.start(); // Blocks until client connects
+                server.start();
 
                 Platform.runLater(() ->
                     statusLabel.setText("Opponent connected! Starting game..."));
 
+                // Register both players and the game session in the DB.
+                try {
+                    int whiteDbId = networking.StrataChessAPI.createPlayer(whiteName);
+                    int blackDbId = networking.StrataChessAPI.createPlayer(blackName);
+                    int gameDbId = networking.StrataChessAPI.createGame(whiteDbId, blackDbId);
+                    controller.setDatabaseIds(gameDbId, whiteDbId, blackDbId);
+                } catch (Exception dbEx) {
+                    System.err.println("[Main] DB registration failed, continuing without persistence: "
+                        + dbEx.getMessage());
+                }
+
             } else {
-                // Guest: connect to the host
                 Client client = new Client(controller, hostIp);
                 controller.attachClient(client);
-                client.connect(); // Blocks until connected
+                client.connect();
 
                 Platform.runLater(() ->
                     statusLabel.setText("Connected! Starting game..."));

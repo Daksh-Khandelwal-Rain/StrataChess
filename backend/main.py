@@ -30,6 +30,7 @@ class CreateMove(BaseModel):
     from_square: str
     to_square: str
     move_number: int
+    move_type: str = "MOVE"
 
 
 # ==============================================================================
@@ -130,11 +131,11 @@ def create_move(game_id: int, body: CreateMove):
         with get_connection() as conn, conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
                 """
-                INSERT INTO moves (game_id, player_id, from_square, to_square, move_number)
-                VALUES (%s, %s, %s, %s, %s) 
-                RETURNING id, game_id, player_id, from_square, to_square, move_number, created_at;
+                INSERT INTO moves (game_id, player_id, from_square, to_square, move_number, move_type)
+                VALUES (%s, %s, %s, %s, %s,%s) 
+                RETURNING id, game_id, player_id, from_square, to_square, move_number,move_type, created_at;
                 """,
-                (game_id, body.player_id, body.from_square, body.to_square, body.move_number)
+                (game_id, body.player_id, body.from_square, body.to_square, body.move_number,body.move_type)
             )
             row = cur.fetchone()
 
@@ -143,7 +144,6 @@ def create_move(game_id: int, body: CreateMove):
 
             conn.commit()
             return row
-
     except psycopg.errors.ForeignKeyViolation:
         # Thrown when game_id or player_id is missing from their respective parent tables
         raise HTTPException(

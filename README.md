@@ -172,27 +172,44 @@ The result: you can replace the entire GUI with a terminal interface by only cha
 
 ## 🚀 Getting Started
 
-### Prerequisites
+### Run with Gradle (recommended)
+
+The only prerequisite is a JDK 17 or newer (`java -version` to check).
+Gradle and JavaFX are downloaded automatically on the first run — no JavaFX SDK download needed.
+
+```bash
+# Windows
+.\gradlew.bat run
+
+# macOS / Linux
+./gradlew run
+```
+
+`.\gradlew.bat build` (or `./gradlew build`) compiles without launching.
+
+### Manual Build (without Gradle)
+
+#### Prerequisites
 
 - Java 17+ installed (`java --version` to check)
 - JavaFX 17 SDK downloaded and placed at `lib/javafx/`
 - Two players on the same Wi-Fi network (or two terminals on one machine)
 
-### One-Command Build
+#### One-Command Build
 
 ```bash
 chmod +x compile.sh run_server.sh run_client.sh
 ./compile.sh
 ```
 
-### Start the Server (Host)
+#### Start the Server (Host)
 
 ```bash
 ./run_server.sh
 # Prints your local IP — share it with the other player
 ```
 
-### Join as Client
+#### Join as Client
 
 ```bash
 ./run_client.sh <host-ip-address>

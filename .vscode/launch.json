@@ -1,6 +1,14 @@
 {
     "version": "0.2.0",
     "configurations": [
+        
+        {
+            "type": "java",
+            "name": "StrataChessAPI",
+            "request": "launch",
+            "mainClass": "networking.StrataChessAPI",
+            "projectName": "StrataChess"
+        },
         {
             "type": "java",
             "name": "StrataChessAPI",

@@ -6,3 +6,9 @@ __pycache__/
 out/
 lib/
 
+# Gradle
+.gradle/
+build/
+# VS Code / Eclipse Java output when importing the Gradle project
+bin/
+
