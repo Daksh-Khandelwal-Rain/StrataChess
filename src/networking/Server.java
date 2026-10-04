@@ -94,23 +94,32 @@ public class Server {
     }
 
     private void printLocalIP() {
-        try {
-            java.util.Enumeration<NetworkInterface> ifaces =
-                NetworkInterface.getNetworkInterfaces();
-            while (ifaces.hasMoreElements()) {
-                NetworkInterface iface = ifaces.nextElement();
-                if (iface.isLoopback() || !iface.isUp()) continue;
-                java.util.Enumeration<InetAddress> addrs = iface.getInetAddresses();
-                while (addrs.hasMoreElements()) {
-                    InetAddress addr = addrs.nextElement();
-                    if (addr instanceof Inet4Address) {
-                        System.out.println("[Server] Your IP: " + addr.getHostAddress());
-                        System.out.println("[Server] Share this with your opponent.");
-                    }
+    try {
+        java.util.Enumeration<NetworkInterface> ifaces = NetworkInterface.getNetworkInterfaces();
+        while (ifaces.hasMoreElements()) {
+            NetworkInterface iface = ifaces.nextElement();
+
+            if (iface.isLoopback() || !iface.isUp() || iface.isVirtual()) continue;
+
+            // Skip common virtual/VPN adapter name patterns
+            String name = iface.getDisplayName().toLowerCase();
+            if (name.contains("virtual") || name.contains("vpn") || name.contains("vmware")
+                || name.contains("hyper-v") || name.contains("docker") || name.contains("loopback")) {
+                continue;
+            }
+
+            java.util.Enumeration<InetAddress> addrs = iface.getInetAddresses();
+            while (addrs.hasMoreElements()) {
+                InetAddress addr = addrs.nextElement();
+                if (addr instanceof Inet4Address) {
+                    System.out.println("[Server] Your IP: " + addr.getHostAddress()
+                        + "  (" + iface.getDisplayName() + ")");
+                    System.out.println("[Server] Share this with your opponent.");
                 }
             }
-        } catch (SocketException e) {
-            System.out.println("[Server] Could not determine IP.");
         }
+    } catch (SocketException e) {
+        System.out.println("[Server] Could not determine IP.");
     }
+}
 }

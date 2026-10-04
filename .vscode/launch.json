@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        
+        {
+            "type": "java",
+            "name": "StrataChessAPI",
+            "request": "launch",
+            "mainClass": "networking.StrataChessAPI",
+            "projectName": "StrataChess"
+        },
+        {
+            "type": "java",
+            "name": "StrataChessAPI",
+            "request": "launch",
+            "mainClass": "networking.StrataChessAPI",
+            "projectName": "StrataChess_5fe1f521"
+        },
+        {
+            "type": "java",
+            "name": "Run StrataChess",
+            "request": "launch",
+            "mainClass": "view.Main",
+            "vmArgs": "--module-path \"${workspaceFolder}/lib/javafx/lib\" --add-modules javafx.controls,javafx.media"
+        }
+    ]
+}

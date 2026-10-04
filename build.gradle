@@ -1,0 +1,41 @@
+// Gradle build for the StrataChess JavaFX client.
+// Gradle downloads JavaFX automatically — no manual SDK download required.
+//
+//   Windows:      .\gradlew.bat run
+//   macOS/Linux:  ./gradlew run
+
+plugins {
+    id 'application'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
+}
+
+repositories {
+    mavenCentral()
+}
+
+// The project keeps its sources directly under src/ (package folders such as
+// src/view, src/engine) rather than Gradle's default src/main/java.
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    // The project targets Java 17 (LTS); any JDK 17+ can build it.
+    options.release = 17
+    options.encoding = 'UTF-8'
+}
+
+javafx {
+    version = '17.0.13'
+    // Only the modules the source actually uses (javafx.graphics and
+    // javafx.base are pulled in transitively).
+    modules = ['javafx.controls', 'javafx.media']
+}
+
+application {
+    mainClass = 'view.Main'
+}
