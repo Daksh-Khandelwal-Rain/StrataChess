@@ -28,7 +28,7 @@ public class Bishop extends Piece {
     }
 
     @Override
-    public List<Position> getValidMoves(Board board) {
+    public List<Position> getNormalValidMoves(Board board) {
         List<Position> moves = new ArrayList<>();
         // The four diagonal directions — always both row AND col change together
         slide(moves, board, -1, -1); // up-left

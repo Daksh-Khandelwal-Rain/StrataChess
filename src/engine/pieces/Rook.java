@@ -26,7 +26,7 @@ public class Rook extends Piece {
     }
 
     @Override
-    public List<Position> getValidMoves(Board board) {
+    public List<Position> getNormalValidMoves(Board board) {
         List<Position> moves = new ArrayList<>();
         // The four orthogonal directions — rows/cols only, no diagonals
         slide(moves, board, -1,  0); // up (decreasing row index)

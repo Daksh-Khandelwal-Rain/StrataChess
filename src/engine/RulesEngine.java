@@ -164,4 +164,14 @@ public class RulesEngine {
             return pos.row >= 0 && pos.row <= (rowsAllowed - 1);
         }
     }
+
+    public static boolean isStalemate(Board board, int playerId, Player player) {
+        // A player in check cannot be stalemated.
+        if (isInCheck(board, playerId, player)) {
+            return false;
+        }
+        
+        // Not in check + no legal moves = stalemate.
+        return hasNoLegalMoves(board, playerId, player);
+    }
 }

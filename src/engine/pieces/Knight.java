@@ -44,7 +44,7 @@ public class Knight extends Piece {
     }
 
     @Override
-    public List<Position> getValidMoves(Board board) {
+    public List<Position> getNormalValidMoves(Board board) {
         List<Position> moves = new ArrayList<>();
 
         for (int[] jump : JUMPS) {

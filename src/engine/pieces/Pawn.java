@@ -49,7 +49,7 @@ public class Pawn extends Piece {
     }
 
     @Override
-    public List<Position> getValidMoves(Board board) {
+    public List<Position> getNormalValidMoves(Board board) {
         List<Position> moves = new ArrayList<>();
 
         // ── 1. Determine forward direction ────────────────────────────────────

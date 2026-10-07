@@ -19,6 +19,7 @@ sourceSets {
     main {
         java {
             srcDirs = ['src']
+            exclude '**/test/**'
         }
     }
 }
@@ -27,6 +28,15 @@ tasks.withType(JavaCompile).configureEach {
     // The project targets Java 17 (LTS); any JDK 17+ can build it.
     options.release = 17
     options.encoding = 'UTF-8'
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 javafx {
@@ -39,3 +49,4 @@ javafx {
 application {
     mainClass = 'view.Main'
 }
+
