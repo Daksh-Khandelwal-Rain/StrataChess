@@ -2,6 +2,7 @@ package view;
 
 import controller.GameController;
 import engine.*;
+import shared.Action;
 import shared.Position;
 import javafx.animation.*;
 import javafx.application.Platform;

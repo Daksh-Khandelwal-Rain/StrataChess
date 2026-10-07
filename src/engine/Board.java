@@ -247,6 +247,10 @@ public class Board {
         traps.add(trap);
     }
 
+    public void removeTrap(Trap trap){
+        traps.remove(trap);
+    }
+
     /** Returns the trap at a position, or null if none exists there. */
     public Trap getTrapAt(Position pos) {
         for (Trap t : traps)

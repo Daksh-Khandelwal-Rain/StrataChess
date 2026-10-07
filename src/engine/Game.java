@@ -93,6 +93,7 @@ public class Game {
 
         if (!applied) return false;
 
+        players[currentPlayerId].recordTurnsTaken();
         totalTurns++;
         advanceTurn();
         return true;
@@ -101,7 +102,7 @@ public class Game {
     // ── Action Handlers ───────────────────────────────────────────────────────
 
     private boolean handleMove(Action action) {
-        if (!RulesEngine.isLegalAction(action, board, players, totalTurns)) return false;
+        if (!RulesEngine.isLegalAction(action, board, players)) return false;
 
         Player actor    = players[action.playerId];
         int    opponent = 1 - action.playerId;
@@ -133,21 +134,40 @@ public class Game {
     }
 
     private boolean handleTrapPlacement(Action action) {
-        if (!RulesEngine.isLegalAction(action, board, players, totalTurns)) return false;
+        if (!RulesEngine.isLegalAction(action, board, players)) {
+            return false;
+        }
 
         Player actor = players[action.playerId];
-        Economy.chargeTrapCost(actor);
+
+        if (!Economy.chargeTrapCost(actor)) {
+            return false;
+        }
+
+        // This is a lifetime deployment count.
         actor.recordTrapPlaced();
+
+        Trap existing = board.getTrapAt(action.to);
+
+        if (existing != null) {
+            // The only existing trap allowed here is an enemy trap.
+            // Trap-vs-trap collision destroys both traps.
+            board.removeTrap(existing);
+            return true;
+        }
 
         Trap trap = new Trap(action.playerId, action.to);
         board.addTrap(trap);
 
-        if (listener != null) listener.onTrapPlaced(trap);
+        if (listener != null) {
+            listener.onTrapPlaced(trap);
+        }
+
         return true;
     }
 
     private boolean handleCrownTransfer(Action action) {
-        if (!RulesEngine.isLegalAction(action, board, players, totalTurns)) return false;
+        if (!RulesEngine.isLegalAction(action, board, players)) return false;
 
         Player actor = players[action.playerId];
 
