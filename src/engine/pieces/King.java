@@ -42,7 +42,7 @@ public class King extends Piece {
     }
 
     @Override
-    public List<Position> getValidMoves(Board board) {
+    public List<Position> getNormalValidMoves(Board board) {
         List<Position> moves = new ArrayList<>();
 
         // Loop over all 8 possible directions

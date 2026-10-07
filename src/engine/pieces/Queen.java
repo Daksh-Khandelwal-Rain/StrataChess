@@ -30,7 +30,7 @@ public class Queen extends Piece {
     }
 
     @Override
-    public List<Position> getValidMoves(Board board) {
+    public List<Position> getNormalValidMoves(Board board) {
         List<Position> moves = new ArrayList<>();
 
         // 4 orthogonal directions (same as Rook)

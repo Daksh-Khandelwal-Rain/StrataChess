@@ -85,12 +85,14 @@ public class RulesEngine {
      * The single validation gate — every action passes through here before
      * being applied to real game state.
      */
-    public static boolean isLegalAction(Action action, Board board,
-                                         Player[] players, int totalTurns) {
-        Player actor = players[action.playerId];
+    public static boolean isLegalAction(Action action, Board board, Player[] players) {
+
+        Player actor = players[action.playerId];                                    
+        if (action == null) return false;
+        if (action.playerId < 0 || action.playerId >= players.length) return false;
         return switch (action.type) {
             case MOVE           -> isLegalMove(action, board, actor);
-            case PLACE_TRAP     -> isLegalTrapPlacement(action, board, actor, totalTurns);
+            case PLACE_TRAP     -> isLegalTrapPlacement(action, board, actor);
             case CROWN_TRANSFER -> isLegalCrownTransfer(action, board, actor, players);
             default             -> false;
         };
@@ -104,13 +106,41 @@ public class RulesEngine {
         return filterLegalMoves(board, piece, actor).contains(action.to);
     }
 
-    private static boolean isLegalTrapPlacement(Action action, Board board,
-                                                  Player actor, int totalTurns) {
-        if (actor.getCoins() < Economy.TRAP_COST)   return false;
-        if (!actor.canPlaceTrap())                   return false;
-        if (board.getPieceAt(action.to) != null)     return false;
-        if (board.getTrapAt(action.to)  != null)     return false;
-        return isInPermittedTerritory(action.to, actor.getId(), totalTurns);
+    private static boolean isLegalTrapPlacement(
+            Action action,
+            Board board,
+            Player actor
+    ) {
+        if (!actor.canPlaceTrap()) {
+            return false;
+        }
+
+        if (actor.getCoins() < Economy.TRAP_COST) {
+            return false;
+        }
+
+        if (action.to == null || !action.to.isOnBoard()) {
+            return false;
+        }
+
+        if (!isInPermittedTerritory(
+                action.to,
+                actor.getId(),
+                actor.getTurnsTaken()
+        )) {
+            return false;
+        }
+
+        // Traps cannot be placed under pieces.
+        if (board.getPieceAt(action.to) != null) {
+            return false;
+        }
+
+        // Own trap = invalid.
+        // Enemy trap = valid, because it triggers the trap-vs-trap collision.
+        Trap existing = board.getTrapAt(action.to);
+
+        return existing == null || existing.getOwnerId() != actor.getId();
     }
 
     private static boolean isLegalCrownTransfer(Action action, Board board,
@@ -144,24 +174,44 @@ public class RulesEngine {
     }
 
     /**
-     * Returns true if the given position is within the player's allowed trap
-     * placement zone, which shrinks every 15 total turns.
+     * Returns true if the position is within the player's current trap
+     * deployment territory.
      *
-     * Phase 1 (turns  0-14): 4 rows
-     * Phase 2 (turns 15-29): 3 rows
-     * Phase 3 (turns 30-44): 2 rows
-     * Phase 4 (turns 45+):   1 row (home row only)
+     * The territory starts near the player's own side and expands by one
+     * row toward the opponent after every 8 completed turns by that player.
+     *
+     * White starts with rows 5-6 and expands toward row 1.
+     * Black starts with rows 1-2 and expands toward row 6.
      */
-    private static boolean isInPermittedTerritory(Position pos, int playerId, int totalTurns) {
-        int phase       = Math.min(totalTurns / 15, 3);
-        int rowsAllowed = 4 - phase;
+    private static boolean isInPermittedTerritory(
+            Position pos,
+            int playerId,
+            int turnsTaken
+    ) {
+        if (pos == null || !pos.isOnBoard()) {
+            return false;
+        }
+
+        int expansion = turnsTaken / 8;
 
         if (playerId == 0) {
-            // White: home row is 7, territory extends upward
-            return pos.row >= (8 - rowsAllowed) && pos.row <= 7;
+            // White starts with rows 5-6 and expands toward row 1.
+            int minRow = Math.max(1, 5 - expansion);
+            return pos.row >= minRow && pos.row <= 6;
         } else {
-            // Black: home row is 0, territory extends downward
-            return pos.row >= 0 && pos.row <= (rowsAllowed - 1);
+            // Black starts with rows 1-2 and expands toward row 6.
+            int maxRow = Math.min(6, 2 + expansion);
+            return pos.row >= 1 && pos.row <= maxRow;
         }
+    }
+
+    public static boolean isStalemate(Board board, int playerId, Player player) {
+        // A player in check cannot be stalemated.
+        if (isInCheck(board, playerId, player)) {
+            return false;
+        }
+        
+        // Not in check + no legal moves = stalemate.
+        return hasNoLegalMoves(board, playerId, player);
     }
 }

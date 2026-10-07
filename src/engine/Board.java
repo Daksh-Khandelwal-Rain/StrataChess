@@ -206,14 +206,13 @@ public class Board {
         // Handle trap activation: if destination has a trap and the moving
         // piece is NOT the king, the piece is destroyed. The trap also disappears.
         Trap trap = getTrapAt(to);
-        if (trap != null && moving.getType() != Piece.Type.KING) {
+
+        if (trap != null && trap.getOwnerId() != moving.getOwnerId()) {
             traps.remove(trap);
-            // The moving piece is destroyed — don't place it at destination.
-            // Return null because trap kills don't award coins (per game rules).
-            return null; // The piece that triggered the trap is gone
-        } else if (trap != null) {
-            // King stepped on trap — king survives, trap is removed
-            traps.remove(trap);
+
+            if (moving.getType() != Piece.Type.KING && !moving.isCrownHolder()) {
+                return null;
+            }
         }
 
         // Place the moving piece at its new square
@@ -246,6 +245,10 @@ public class Board {
     /** Adds a trap to the board at the given position. */
     public void addTrap(Trap trap) {
         traps.add(trap);
+    }
+
+    public void removeTrap(Trap trap){
+        traps.remove(trap);
     }
 
     /** Returns the trap at a position, or null if none exists there. */

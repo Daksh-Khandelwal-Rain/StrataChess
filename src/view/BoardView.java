@@ -2,7 +2,7 @@ package view;
 
 import controller.GameController;
 import engine.*;
-import engine.Piece;
+import shared.Action;
 import shared.Position;
 import javafx.animation.*;
 import javafx.application.Platform;
@@ -174,7 +174,12 @@ public class BoardView extends BorderPane implements Game.GameListener {
         setCenter(mainLayout);
         setStyle("-fx-background-color: #1A1A1A;");
 
-        clockTimer = new Timeline(new KeyFrame(Duration.seconds(1), e -> updateClockLabels()));
+        clockTimer = new Timeline(
+            new KeyFrame(Duration.seconds(1), e -> {
+                controller.getGame().checkTimeout();
+                updateClockLabels();
+            })
+        );
         clockTimer.setCycleCount(Animation.INDEFINITE);
         clockTimer.play();
 
@@ -918,25 +923,33 @@ public class BoardView extends BorderPane implements Game.GameListener {
 
     @Override
     public void onGameOver(int winnerId, String reason) {
-        Platform.runLater(() -> {
-            clockTimer.stop();
-            mode = Mode.WAITING;
-            hideStore();
+        clockTimer.stop();
+        mode = Mode.WAITING;
+        hideStore();
 
-            String name   = controller.getGame().getPlayer(winnerId).getName();
-            String symbol = (winnerId == 0) ? "♙" : "♟";
-
-            winnerNameLabel.setText(symbol + "  " + name + "  wins!");
-            winnerReasonLabel.setText("— by " + reason.toUpperCase() + " —");
-            winnerReasonLabel.setTextFill(
-                reason.equalsIgnoreCase("checkmate") ? Color.web("#FF6B6B")
-              : reason.equalsIgnoreCase("timeout")   ? Color.web("#FFD700")
-              : Color.WHITE
-            );
+        if (winnerId == -1) {
+            winnerNameLabel.setText("DRAW");
+            winnerReasonLabel.setText("— by STALEMATE —");
 
             gameOverOverlay.setVisible(true);
-            statusLabel.setText("Game Over — " + name + " wins by " + reason + "!");
+
+            statusLabel.setText("Game Over — Draw by stalemate.");
             redraw();
-        });
+            return;
+        }
+
+        String name = controller.getGame().getPlayer(winnerId).getName();
+        String symbol = (winnerId == 0) ? "♙" : "♟";
+
+        winnerNameLabel.setText(symbol + "  " + name + "  wins!");
+        winnerReasonLabel.setText("— by " + reason.toUpperCase() + " —");
+
+        gameOverOverlay.setVisible(true);
+
+        statusLabel.setText(
+            "Game Over — " + name + " wins by " + reason + "!"
+        );
+
+        redraw();
     }
 }

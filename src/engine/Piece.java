@@ -103,7 +103,49 @@ public abstract class Piece {
      *              occupied and by whom.
      * @return A list of squares this piece can physically move to.
      */
-    public abstract List<Position> getValidMoves(Board board);
+    public List<Position> getValidMoves(Board board) {
+        if (isCrownHolder) {
+            return getKingMoves(board);
+        }
+
+        return getNormalValidMoves(board);
+    }
+
+    protected abstract List<Position> getNormalValidMoves(Board board);
+
+    // So we can make sure every piece will have this
+    protected List<Position> getKingMoves(Board board) {
+        List<Position> moves = new java.util.ArrayList<>();
+
+        int[] directions = {
+            -1, -1,
+            -1,  0,
+            -1,  1,
+            0, -1,
+            0,  1,
+            1, -1,
+            1,  0,
+            1,  1
+        };
+
+        for (int i = 0; i < directions.length; i += 2) {
+            Position target = new Position(
+                position.row + directions[i],
+                position.col + directions[i + 1]
+            );
+
+            if (!target.isOnBoard()) continue;
+
+            Piece occupant = board.getPieceAt(target);
+
+            if (occupant == null || occupant.getOwnerId() != ownerId) {
+                moves.add(target);
+            }
+        }
+
+        return moves;
+    }
+
 
     // ── Concrete Methods — Shared by All Pieces ───────────────────────────────
     // These are NOT abstract because every piece behaves the same way for these.

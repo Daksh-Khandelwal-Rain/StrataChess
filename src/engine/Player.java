@@ -11,11 +11,7 @@ public class Player {
     // ── Constants ─────────────────────────────────────────────────────────────
     public static final long INITIAL_TIME_MS = 7 * 60 * 1000L;
 
-    /**
-     * FIX: Maximum lifetime traps reduced from 3 → 2.
-     * Fewer mines = each placement is a bigger strategic decision.
-     */
-    public static final int MAX_TRAPS = 2;
+    public static final int MAX_TRAPS = 3;
 
     // ── Identity ──────────────────────────────────────────────────────────────
     private final int    id;
@@ -24,6 +20,7 @@ public class Player {
     // ── Economy ───────────────────────────────────────────────────────────────
     private int coins;
     private int trapsUsed;
+    private int turnsTaken;
 
     // ── Timer ─────────────────────────────────────────────────────────────────
     private long    timeRemainingMs;
@@ -40,6 +37,7 @@ public class Player {
         this.name              = name;
         this.coins             = 0;
         this.trapsUsed         = 0;
+        this.turnsTaken        = 0;
         this.timeRemainingMs   = INITIAL_TIME_MS;
         this.turnStartMs       = 0L;
         this.clockRunning      = false;
@@ -97,7 +95,23 @@ public class Player {
         trapsUsed++;
     }
 
-    public int getTrapsUsed() { return trapsUsed; }
+    public int getTrapsUsed() {
+        return trapsUsed;
+    }
+
+    // ── Turn Tracking ─────────────────────────────────────────────────────────
+
+    /**
+     * Records one successfully completed turn by this player.
+     * Invalid actions must never call this method.
+     */
+    public void recordTurnsTaken() {
+        turnsTaken++;
+    }
+
+    public int getTurnsTaken() {
+        return turnsTaken;
+    }
 
     // ── Crown Methods ─────────────────────────────────────────────────────────
 
