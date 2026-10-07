@@ -1,0 +1,140 @@
+[1mdiff --git a/src/engine/Economy.java b/src/engine/Economy.java[m
+[1mindex 8cb374e..89c8a84 100644[m
+[1m--- a/src/engine/Economy.java[m
+[1m+++ b/src/engine/Economy.java[m
+[36m@@ -4,64 +4,97 @@[m [mimport java.util.Map;[m
+ [m
+ /**[m
+  * CONCEPT: Pure Functions and the "Service" Pattern[m
+[31m- * Economy.java is a STATELESS service — it holds no data of its own.[m
+[31m- * All it contains is the RULES of the economy: exchange rates and costs.[m
+[32m+[m[32m * Economy.java is a STATELESS service: it holds no data of its own.[m
+[32m+[m[32m * It contains only the RULES of the economy.[m
+[32m+[m[32m *[m
+[32m+[m[32m * StrataChess has exactly TWO income sources:[m
+[32m+[m[32m *   1. Tribute        - the player who LOSES a piece to a normal capture[m
+[32m+[m[32m *                       receives ceil(pieceValue / 2) coins.[m
+[32m+[m[32m *   2. Strata Squares - entering an active Strata Square pays +1 (normal[m
+[32m+[m[32m *                       eligible piece) or +2 (Crown Holder).[m
+[32m+[m[32m * There is no capture bounty, passive income, or any other source.[m
+  */[m
+ public class Economy {[m
+ [m
+[31m-    // ── Coin Value Table ──────────────────────────────────────────────────────[m
+[31m-    private static final Map<Piece.Type, Integer> COIN_VALUES = Map.of([m
+[32m+[m[32m    // ── Standard Piece Values ─────────────────────────────────────────────────[m
+[32m+[m[32m    // The single authoritative piece-value table. Tribute is derived from it.[m
+[32m+[m[32m    private static final Map<Piece.Type, Integer> PIECE_VALUES = Map.of([m
+         Piece.Type.PAWN,   1,[m
+[31m-        Piece.Type.KNIGHT, 2,[m
+[31m-        Piece.Type.BISHOP, 2,[m
+[31m-        Piece.Type.ROOK,   3,[m
+[31m-        Piece.Type.QUEEN,  4,[m
+[32m+[m[32m        Piece.Type.KNIGHT, 3,[m
+[32m+[m[32m        Piece.Type.BISHOP, 3,[m
+[32m+[m[32m        Piece.Type.ROOK,   5,[m
+[32m+[m[32m        Piece.Type.QUEEN,  9,[m
+         Piece.Type.KING,   0[m
+     );[m
+ [m
+[31m-    /** Cost to place one mine (trap). */[m
+[32m+[m[32m    // ── Costs ─────────────────────────────────────────────────────────────────[m
+[32m+[m
+[32m+[m[32m    /** Cost to place one trap. */[m
+     public static final int TRAP_COST = 3;[m
+ [m
+[31m-    /**[m
+[31m-     * FIX: Crown transfer now costs 5 coins (was free).[m
+[31m-     * This makes it a meaningful late-game decision, not a free escape.[m
+[31m-     * You need to earn it through captures before using it as a strategic trump card.[m
+[31m-     */[m
+[32m+[m[32m    /** Cost to execute the crown transfer. */[m
+     public static final int CROWN_TRANSFER_COST = 5;[m
+ [m
+[32m+[m[32m    // ── Strata Rewards ────────────────────────────────────────────────────────[m
+[32m+[m
+[32m+[m[32m    /** Reward when a normal eligible piece (N, B, R, Q) enters an active Strata Square. */[m
+[32m+[m[32m    public static final int STRATA_REWARD_NORMAL = 1;[m
+[32m+[m
+[32m+[m[32m    /** Reward when the Crown Holder (any piece type) enters an active Strata Square. */[m
+[32m+[m[32m    public static final int STRATA_REWARD_CROWN_HOLDER = 2;[m
+[32m+[m
+     private Economy() {}[m
+ [m
+[31m-    // ── Core Methods ──────────────────────────────────────────────────────────[m
+[32m+[m[32m    // ── Piece Values / Tribute ────────────────────────────────────────────────[m
+[32m+[m
+[32m+[m[32m    /** Returns the standard value of a piece type (P=1, N=3, B=3, R=5, Q=9, K=0). */[m
+[32m+[m[32m    public static int getValueOf(Piece.Type type) {[m
+[32m+[m[32m        return PIECE_VALUES.getOrDefault(type, 0);[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    /** Tribute for losing a piece of this type: ceil(value / 2). */[m
+[32m+[m[32m    public static int tributeFor(Piece.Type type) {[m
+[32m+[m[32m        return (getValueOf(type) + 1) / 2;[m
+[32m+[m[32m    }[m
+ [m
+     /**[m
+[31m-     * Awards coins to a player for capturing an opponent's piece via movement.[m
+[31m-     * Trap kills do NOT award coins — only direct captures do.[m
+[32m+[m[32m     * Awards Tribute to the player who LOST the piece in a normal capture.[m
+[32m+[m[32m     * The capturing player receives nothing. Crown Holder status is ignored:[m
+[32m+[m[32m     * Tribute always uses the underlying piece type.[m
+[32m+[m[32m     * Never call this for trap kills.[m
+[32m+[m[32m     *[m
+[32m+[m[32m     * @return the Tribute awarded.[m
+      */[m
+[31m-    public static int awardForCapture(Piece capturedPiece, Player capturingPlayer) {[m
+[31m-        int coins = COIN_VALUES.getOrDefault(capturedPiece.getType(), 0);[m
+[31m-        capturingPlayer.addCoins(coins);[m
+[31m-        return coins;[m
+[32m+[m[32m    public static int awardTribute(Piece capturedPiece, Player losingPlayer) {[m
+[32m+[m[32m        int tribute = tributeFor(capturedPiece.getType());[m
+[32m+[m[32m        losingPlayer.addCoins(tribute);[m
+[32m+[m[32m        return tribute;[m
+     }[m
+ [m
+[32m+[m[32m    // ── Strata Eligibility ────────────────────────────────────────────────────[m
+[32m+[m
+     /**[m
+[31m-     * Attempts to charge a player the trap placement cost.[m
+[31m-     * Returns false (no deduction) if they can't afford it.[m
+[32m+[m[32m     * Coins a piece earns for entering an active Strata Square.[m
+[32m+[m[32m     * Crown Holder overrides piece type (+2). Otherwise N/B/R/Q earn +1;[m
+[32m+[m[32m     * Pawn and a non-crown King earn 0.[m
+      */[m
+[32m+[m[32m    public static int strataRewardFor(Piece piece) {[m
+[32m+[m[32m        if (piece.isCrownHolder()) return STRATA_REWARD_CROWN_HOLDER;[m
+[32m+[m[32m        return switch (piece.getType()) {[m
+[32m+[m[32m            case KNIGHT, BISHOP, ROOK, QUEEN -> STRATA_REWARD_NORMAL;[m
+[32m+[m[32m            default -> 0;[m
+[32m+[m[32m        };[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    // ── Spending ──────────────────────────────────────────────────────────────[m
+[32m+[m
+[32m+[m[32m    /** Attempts to charge the trap cost. Returns false (no deduction) if unaffordable. */[m
+     public static boolean chargeTrapCost(Player player) {[m
+         return player.spendCoins(TRAP_COST);[m
+     }[m
+ [m
+[31m-    /**[m
+[31m-     * FIX: Charges the crown transfer cost (5 coins).[m
+[31m-     * Called by Game.handleCrownTransfer after validation succeeds.[m
+[31m-     * Returns false if the player somehow can't afford it (safety guard).[m
+[31m-     */[m
+[32m+[m[32m    /** Charges the crown transfer cost. Returns false if unaffordable (safety guard). */[m
+     public static boolean chargeCrownTransferCost(Player player) {[m
+         return player.spendCoins(CROWN_TRANSFER_COST);[m
+     }[m
+[31m-[m
+[31m-    /** Returns the coin reward for capturing a given piece type (used by UI tooltips). */[m
+[31m-    public static int getValueOf(Piece.Type type) {[m
+[31m-        return COIN_VALUES.getOrDefault(type, 0);[m
+[31m-    }[m
+ }[m
+\ No newline at end of file[m
+[1mdiff --git a/src/engine/Game.java b/src/engine/Game.java[m
+[1mindex 6033bb3..cf73828 100644[m
+[1m--- a/src/engine/Game.java[m
+[1m+++ b/

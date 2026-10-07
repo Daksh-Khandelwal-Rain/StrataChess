@@ -3,13 +3,16 @@ package engine;
 import shared.Action;
 import shared.Position;
 
+import java.util.List;
+import java.util.Random;
+
 /**
  * CONCEPT: Finite State Machine (FSM)
  * StrataChess has exactly three states:
  *   WAITING → PLAYING → GAME_OVER
  *
  * Game.java is the COORDINATOR — delegates work to Board, RulesEngine,
- * Economy, and Player. It doesn't implement any of those things itself.
+ * Economy, StrataManager, and Player. It doesn't implement those rules itself.
  */
 public class Game {
 
@@ -17,22 +20,22 @@ public class Game {
     public enum State { WAITING, PLAYING, GAME_OVER }
 
     // ── Core Components ───────────────────────────────────────────────────────
-    private final Board    board;
-    private final Player[] players;
-    private       State    state;
-    private       int      currentPlayerId;
-    private       int      totalTurns;
-    private       int      winnerId;
+    private final Board         board;
+    private final Player[]      players;
+    private final StrataManager strata;
+    private final Random        random;
+    private       State         state;
+    private       int           currentPlayerId;
+    private       int           totalTurns;
+    private       int           winnerId;
 
     // ── Listener Interface ────────────────────────────────────────────────────
     /**
      * CONCEPT: Observer / Listener Pattern
      * Game notifies the GUI about events without knowing anything about JavaFX.
      *
-     * FIX: Added onCheckmateWarning — fires when a player is in checkmate but
-     * still has crown transfer available as an escape route. The game does NOT
-     * end immediately; the player gets one chance to use crown transfer.
-     * If they can't (already used or can't afford it), onGameOver fires instead.
+     * The economy callbacks are default no-op methods, so existing listener
+     * implementations keep compiling.
      */
     public interface GameListener {
         void onMoveMade(Position from, Position to, Piece captured);
@@ -47,17 +50,30 @@ public class Game {
          */
         void onCheckmateWarning(int playerId);
         void onGameOver(int winnerId, String reason);
+
+        /** A player received Tribute for losing a piece to a normal capture. */
+        default void onTributeAwarded(int playerId, int coins) {}
+
+        /** A player collected from a Strata Square (fires for both players). */
+        default void onStrataCollected(int playerId, StrataManager.StrataCollection collection) {}
     }
 
     private GameListener listener;
 
-    // ── Constructor ───────────────────────────────────────────────────────────
+    // ── Constructors ──────────────────────────────────────────────────────────
     public Game(String player0Name, String player1Name) {
+        this(player0Name, player1Name, new Random());
+    }
+
+    /** Lets callers (tests, networking) supply the Random used for Strata generation. */
+    public Game(String player0Name, String player1Name, Random random) {
         this.board           = new Board();
         this.players         = new Player[]{
             new Player(0, player0Name),
             new Player(1, player1Name)
         };
+        this.strata          = new StrataManager();
+        this.random          = random;
         this.state           = State.WAITING;
         this.currentPlayerId = 0;
         this.totalTurns      = 0;
@@ -68,6 +84,7 @@ public class Game {
 
     public void start() {
         board.setupInitialPosition();
+        strata.generate(random);
         players[0].setCrownPosition(new Position(7, 4)); // White King e1
         players[1].setCrownPosition(new Position(0, 4)); // Black King e8
         state = State.PLAYING;
@@ -108,13 +125,30 @@ public class Game {
         int    opponent = 1 - action.playerId;
 
         Piece captured = board.applyMove(action.from, action.to);
+
+        // ── Economy source 1: Tribute ─────────────────────────────────────────
+        // The player who LOST the piece is paid. The capturer gets nothing.
+        // Trap kills make applyMove return null, so they never pay Tribute.
         if (captured != null) {
-            Economy.awardForCapture(captured, actor);
+            int tribute = Economy.awardTribute(captured, players[opponent]);
+            if (listener != null) listener.onTributeAwarded(opponent, tribute);
         }
 
         Piece movedPiece = board.getPieceAt(action.to);
         if (movedPiece != null && movedPiece.isCrownHolder()) {
             actor.setCrownPosition(action.to);
+        }
+
+        // ── Economy source 2: Strata entry ────────────────────────────────────
+        // Only if the actor's own piece actually survived and now stands on the
+        // destination (a piece killed by a trap never "enters").
+        if (movedPiece != null && movedPiece.getOwnerId() == action.playerId) {
+            StrataManager.StrataCollection collection =
+                strata.resolveEntry(action.to, movedPiece);
+            if (collection != null) {
+                actor.addCoins(collection.coins());
+                if (listener != null) listener.onStrataCollected(action.playerId, collection);
+            }
         }
 
         if (listener != null) listener.onMoveMade(action.from, action.to, captured);
@@ -171,11 +205,7 @@ public class Game {
 
         Player actor = players[action.playerId];
 
-        /**
-         * FIX: Charge 5 coins for the crown transfer.
-         * RulesEngine already validated the player has enough coins, so this
-         * should always succeed here — but we keep the return-false safety guard.
-         */
+        // RulesEngine already validated affordability; this is a safety guard.
         if (!Economy.chargeCrownTransferCost(actor)) return false;
 
         board.applyCrownTransfer(action.from, action.to);
@@ -216,17 +246,24 @@ public class Game {
 
         if (players[currentPlayerId].isOutOfTime()) {
             endGame(1 - currentPlayerId, "timeout");
+        }
     }
-}
 
     // ── Getters ───────────────────────────────────────────────────────────────
 
-    public Board    getBoard()            { return board; }
-    public Player[] getPlayers()          { return players; }
-    public Player   getPlayer(int id)     { return players[id]; }
-    public State    getState()            { return state; }
-    public int      getCurrentPlayerId()  { return currentPlayerId; }
-    public int      getTotalTurns()       { return totalTurns; }
-    public int      getWinnerId()         { return winnerId; }
-    public void     setListener(GameListener l) { this.listener = l; }
+    public Board         getBoard()            { return board; }
+    public Player[]      getPlayers()          { return players; }
+    public Player        getPlayer(int id)     { return players[id]; }
+    public State         getState()            { return state; }
+    public int           getCurrentPlayerId()  { return currentPlayerId; }
+    public int           getTotalTurns()       { return totalTurns; }
+    public int           getWinnerId()         { return winnerId; }
+    public StrataManager getStrata()           { return strata; }
+
+    /** Active Strata Squares this player may see. The UI must use this, never getStrata() directly. */
+    public List<StrataSquare> getVisibleStrata(int playerId) {
+        return strata.getActiveVisibleTo(playerId);
+    }
+
+    public void setListener(GameListener l) { this.listener = l; }
 }
