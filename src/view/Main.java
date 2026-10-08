@@ -5,6 +5,11 @@ import engine.Game;
 import networking.Client;
 import networking.Server;
 
+import javafx.geometry.Rectangle2D;
+import javafx.scene.Group;
+import javafx.scene.transform.Scale;
+import javafx.stage.Screen;
+
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -280,14 +285,28 @@ public class Main extends Application {
      * is as simple as calling stage.setScene(newScene). The old scene and all
      * its nodes are automatically garbage-collected when no longer referenced.
      */
+    // Design size of the game screen: board + side panels + status bar + buttons.
+    private static final double GAME_W = 920;
+    private static final double GAME_H = 790;
+
     private void showGameScreen(GameController controller) {
         BoardView boardView = new BoardView(controller);
+        boardView.setPrefSize(GAME_W, GAME_H);
 
-        Scene gameScene = new Scene(boardView, 900, 720);
+        // Shrink the whole game screen if the display is too small to show it all.
+        Rectangle2D screen = Screen.getPrimary().getVisualBounds();
+        double scale = Math.min(1.0, Math.min(
+            (screen.getWidth()  - 20) / GAME_W,
+            (screen.getHeight() - 70) / GAME_H));
+        boardView.getTransforms().add(new Scale(scale, scale, 0, 0));
+
+        Group root = new Group(boardView);
+        Scene gameScene = new Scene(root, GAME_W * scale, GAME_H * scale);
         gameScene.setFill(Color.web("#1A1A1A"));
 
         primaryStage.setScene(gameScene);
         primaryStage.sizeToScene();
+        primaryStage.centerOnScreen();
         primaryStage.setTitle("♟ StrataChess — " +
             controller.getGame().getPlayer(controller.getLocalPlayerId()).getName());
     }
