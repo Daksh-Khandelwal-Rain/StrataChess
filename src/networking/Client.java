@@ -43,6 +43,25 @@ public class Client {
         );
         in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
+        // The host's first line is the Strata seed. Read it synchronously, before
+        // the listener thread starts, so it is never treated as a game action.
+        socket.setSoTimeout(5000);
+        String handshake = in.readLine();
+        socket.setSoTimeout(0);
+
+        if (handshake == null || !handshake.startsWith(Server.SEED_PREFIX)) {
+            close();
+            throw new IOException("Host did not send the game seed (version mismatch?)");
+        }
+        long seed;
+        try {
+            seed = Long.parseLong(handshake.substring(Server.SEED_PREFIX.length()));
+        } catch (NumberFormatException e) {
+            close();
+            throw new IOException("Host sent an invalid game seed");
+        }
+        controller.getGame().seedStrata(seed);
+
         startListening();
     }
 

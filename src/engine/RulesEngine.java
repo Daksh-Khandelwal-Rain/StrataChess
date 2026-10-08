@@ -184,9 +184,9 @@ public class RulesEngine {
      * Black starts with rows 1-2 and expands toward row 6.
      */
     private static boolean isInPermittedTerritory(
-            Position pos,
-            int playerId,
-            int turnsTaken
+        Position pos,
+        int playerId,
+        int turnsTaken
     ) {
         if (pos == null || !pos.isOnBoard()) {
             return false;
@@ -194,15 +194,15 @@ public class RulesEngine {
 
         int expansion = turnsTaken / 8;
 
+        // White starts at ranks 3-4 and expands toward rank 8.
         if (playerId == 0) {
-            // White starts with rows 5-6 and expands toward row 1.
-            int minRow = Math.max(1, 5 - expansion);
-            return pos.row >= minRow && pos.row <= 6;
-        } else {
-            // Black starts with rows 1-2 and expands toward row 6.
-            int maxRow = Math.min(6, 2 + expansion);
-            return pos.row >= 1 && pos.row <= maxRow;
+            int minRow = Math.max(0, 5 - expansion);
+            return pos.row >= minRow && pos.row <= 5;
         }
+
+        // Black starts at ranks 5-6 and expands toward rank 1.
+        int maxRow = Math.min(7, 2 + expansion);
+        return pos.row >= 2 && pos.row <= maxRow;
     }
 
     public static boolean isStalemate(Board board, int playerId, Player player) {

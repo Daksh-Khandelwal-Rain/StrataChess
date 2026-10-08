@@ -3,6 +3,7 @@ package engine;
 import shared.Action;
 import shared.Position;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
@@ -249,6 +250,13 @@ public class Game {
         }
     }
 
+
+
+    /** Seeds Strata generation so both machines build identical squares. Call before start(). */
+    public void seedStrata(long seed) {
+        if (state == State.WAITING) random.setSeed(seed);
+    }
+
     // ── Getters ───────────────────────────────────────────────────────────────
 
     public Board         getBoard()            { return board; }
@@ -263,6 +271,20 @@ public class Game {
     /** Active Strata Squares this player may see. The UI must use this, never getStrata() directly. */
     public List<StrataSquare> getVisibleStrata(int playerId) {
         return strata.getActiveVisibleTo(playerId);
+    }
+
+        /** Squares where this player may legally place a trap right now. RulesEngine decides. */
+    public List<Position> getLegalTrapSquares(int playerId) {
+        List<Position> squares = new ArrayList<>();
+        for (int r = 0; r < 8; r++) {
+            for (int c = 0; c < 8; c++) {
+                Position p = new Position(r, c);
+                if (RulesEngine.isLegalAction(Action.placeTrap(playerId, p), board, players)) {
+                    squares.add(p);
+                }
+            }
+        }
+        return squares;
     }
 
     public void setListener(GameListener l) { this.listener = l; }
