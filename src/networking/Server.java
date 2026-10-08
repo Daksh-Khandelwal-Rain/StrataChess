@@ -9,6 +9,9 @@ public class Server {
 
     private static final int PORT = 5000;
 
+    /** First line sent to the guest: the seed used for Strata square generation. */
+    public static final String SEED_PREFIX = "SEED:";
+
     private final GameController controller;
     private ServerSocket serverSocket;
     private Socket       clientSocket;
@@ -42,6 +45,14 @@ public class Server {
             true // autoFlush
         );
         in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+
+        // Both machines run their own Game, so they must generate identical Strata
+        // squares. Pick the seed here, apply it locally, and send it to the guest
+        // BEFORE the listener thread starts and before game.start() is called.
+        long seed = new java.util.Random().nextLong();
+        controller.getGame().seedStrata(seed);
+        out.println(SEED_PREFIX + seed);
+        System.out.println("[Server] Sent Strata seed to client.");
 
         startListening();
     }
@@ -94,32 +105,32 @@ public class Server {
     }
 
     private void printLocalIP() {
-    try {
-        java.util.Enumeration<NetworkInterface> ifaces = NetworkInterface.getNetworkInterfaces();
-        while (ifaces.hasMoreElements()) {
-            NetworkInterface iface = ifaces.nextElement();
+        try {
+            java.util.Enumeration<NetworkInterface> ifaces = NetworkInterface.getNetworkInterfaces();
+            while (ifaces.hasMoreElements()) {
+                NetworkInterface iface = ifaces.nextElement();
 
-            if (iface.isLoopback() || !iface.isUp() || iface.isVirtual()) continue;
+                if (iface.isLoopback() || !iface.isUp() || iface.isVirtual()) continue;
 
-            // Skip common virtual/VPN adapter name patterns
-            String name = iface.getDisplayName().toLowerCase();
-            if (name.contains("virtual") || name.contains("vpn") || name.contains("vmware")
-                || name.contains("hyper-v") || name.contains("docker") || name.contains("loopback")) {
-                continue;
-            }
+                // Skip common virtual/VPN adapter name patterns
+                String name = iface.getDisplayName().toLowerCase();
+                if (name.contains("virtual") || name.contains("vpn") || name.contains("vmware")
+                    || name.contains("hyper-v") || name.contains("docker") || name.contains("loopback")) {
+                    continue;
+                }
 
-            java.util.Enumeration<InetAddress> addrs = iface.getInetAddresses();
-            while (addrs.hasMoreElements()) {
-                InetAddress addr = addrs.nextElement();
-                if (addr instanceof Inet4Address) {
-                    System.out.println("[Server] Your IP: " + addr.getHostAddress()
-                        + "  (" + iface.getDisplayName() + ")");
-                    System.out.println("[Server] Share this with your opponent.");
+                java.util.Enumeration<InetAddress> addrs = iface.getInetAddresses();
+                while (addrs.hasMoreElements()) {
+                    InetAddress addr = addrs.nextElement();
+                    if (addr instanceof Inet4Address) {
+                        System.out.println("[Server] Your IP: " + addr.getHostAddress()
+                            + "  (" + iface.getDisplayName() + ")");
+                        System.out.println("[Server] Share this with your opponent.");
+                    }
                 }
             }
+        } catch (SocketException e) {
+            System.out.println("[Server] Could not determine IP.");
         }
-    } catch (SocketException e) {
-        System.out.println("[Server] Could not determine IP.");
     }
-}
 }

@@ -36,6 +36,12 @@ import java.util.List;
  * ACTION BAR (bottom):
  *   [♟ Move]   — return to normal mode
  *   [🏪 Store] — open/close the store overlay (always accessible on your turn)
+ *
+ * ECONOMY DISPLAY:
+ *   Strata Squares are drawn from game.getVisibleStrata(localPlayerId), so a
+ *   player never sees the opponent's private square. Tribute and Strata payouts
+ *   appear on the event line under the status bar (separate from the status
+ *   label, which is overwritten on every turn change).
  */
 public class BoardView extends BorderPane implements Game.GameListener {
 
@@ -53,6 +59,12 @@ public class BoardView extends BorderPane implements Game.GameListener {
     private static final Color HIGHLIGHT_CROWN  = Color.web("#9B59B688");
     private static final Color TRAP_MINE_COLOR  = Color.web("#CC4400CC");
     private static final Color TRAP_SENSE_COLOR = Color.web("#FFD700BB");
+
+    // Strata Squares: cyan = shared (both players see it), violet = your private square
+    private static final Color STRATA_SHARED_FILL  = Color.web("#00E5FF55");
+    private static final Color STRATA_SHARED_EDGE  = Color.web("#00B8D4");
+    private static final Color STRATA_PRIVATE_FILL = Color.web("#B388FF55");
+    private static final Color STRATA_PRIVATE_EDGE = Color.web("#7C4DFF");
 
     private static final String[] WHITE_SYMBOLS = {"♔","♕","♖","♗","♘","♙"};
     private static final String[] BLACK_SYMBOLS = {"♚","♛","♜","♝","♞","♟"};
@@ -81,6 +93,7 @@ public class BoardView extends BorderPane implements Game.GameListener {
     private final Canvas          boardCanvas;
     private final GraphicsContext gc;
     private final Label           statusLabel;
+    private final Label           eventLabel;   // Tribute / Strata payouts
 
     private final Label player0TimeLabel;
     private final Label player1TimeLabel;
@@ -118,12 +131,18 @@ public class BoardView extends BorderPane implements Game.GameListener {
         gc          = boardCanvas.getGraphicsContext2D();
         boardCanvas.setOnMouseClicked(e -> handleClick(e.getX(), e.getY()));
 
-        // ── Status bar ────────────────────────────────────────────────────────
+        // ── Status bar + economy event line ───────────────────────────────────
         statusLabel = styledLabel("StrataChess", "#FFD700", 16);
         HBox statusBar = new HBox(statusLabel);
         statusBar.setAlignment(Pos.CENTER);
         statusBar.setPadding(new Insets(6));
         statusBar.setStyle("-fx-background-color: #111111;");
+
+        eventLabel = styledLabel(" ", "#7FDBFF", 13);
+        HBox eventBar = new HBox(eventLabel);
+        eventBar.setAlignment(Pos.CENTER);
+        eventBar.setPadding(new Insets(3, 6, 5, 6));
+        eventBar.setStyle("-fx-background-color: #111111;");
 
         // ── Player panels ─────────────────────────────────────────────────────
         player0TimeLabel  = styledLabel("07:00", "#FFD700", 20);
@@ -170,7 +189,7 @@ public class BoardView extends BorderPane implements Game.GameListener {
         VBox mainLayout = new VBox(0, centerRow, actionBar);
         mainLayout.setStyle("-fx-background-color: #1A1A1A;");
 
-        setTop(statusBar);
+        setTop(new VBox(0, statusBar, eventBar));
         setCenter(mainLayout);
         setStyle("-fx-background-color: #1A1A1A;");
 
@@ -197,6 +216,9 @@ public class BoardView extends BorderPane implements Game.GameListener {
      */
     private VBox buildStoreOverlay() {
         Label title = styledLabel("🏪  StrataChess Store", "#FFD700", 18);
+        Label earnHint = styledLabel(
+            "Earn coins: Tribute (when you LOSE a piece to a capture) and Strata Squares (◆)",
+            "#7FDBFF", 11);
 
         // ── LEFT: Mines ───────────────────────────────────────────────────────
         storeTrapCostLabel   = styledLabel("Cost: " + Economy.TRAP_COST + " coins", "#C0C0C0", 12);
@@ -242,6 +264,7 @@ public class BoardView extends BorderPane implements Game.GameListener {
             styledLabel("• New crown holder moves like a King", "#AAAAAA", 11),
             styledLabel("• Original King becomes capturable", "#AAAAAA", 11),
             styledLabel("• Cannot use while crown holder is in check", "#AAAAAA", 11),
+            styledLabel("• Crown holder earns +2 (not +1) on Strata", "#7FDBFF", 11),
             styledLabel("• One-time only — use wisely!", "#FF8888", 11)
         );
         crownRules.setPadding(new Insets(4, 0, 4, 0));
@@ -278,7 +301,7 @@ public class BoardView extends BorderPane implements Game.GameListener {
         closeRow.setAlignment(Pos.CENTER);
         closeRow.setPadding(new Insets(8, 0, 0, 0));
 
-        VBox overlay = new VBox(12, title, columns, closeRow);
+        VBox overlay = new VBox(12, title, earnHint, columns, closeRow);
         overlay.setAlignment(Pos.TOP_CENTER);
         overlay.setPadding(new Insets(20));
         // Dark translucent background covering the entire board
@@ -664,6 +687,9 @@ public class BoardView extends BorderPane implements Game.GameListener {
             }
         }
 
+        // Strata Squares (only the ones THIS player is allowed to see)
+        drawStrataSquares(game, myId);
+
         // Mode-specific highlights
         if (mode == Mode.PLACING_TRAP) {
             for (Position p : validTrapSquares) highlight(p, HIGHLIGHT_TRAP);
@@ -757,6 +783,39 @@ public class BoardView extends BorderPane implements Game.GameListener {
         }
     }
 
+    /**
+     * Draws every ACTIVE Strata Square this player may see. The opponent's
+     * private square is never returned by getVisibleStrata, so it is never drawn.
+     * Remaining charges are shown as filled dots in the bottom-left corner.
+     * Exhausted squares are removed by the engine and simply stop appearing.
+     */
+    private void drawStrataSquares(Game game, int myId) {
+        for (StrataSquare sq : game.getVisibleStrata(myId)) {
+            double x = colToX(sq.getPosition().col);
+            double y = rowToY(sq.getPosition().row);
+            boolean shared = sq.isShared();
+            Color fill = shared ? STRATA_SHARED_FILL : STRATA_PRIVATE_FILL;
+            Color edge = shared ? STRATA_SHARED_EDGE : STRATA_PRIVATE_EDGE;
+
+            gc.setFill(fill);
+            gc.fillRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
+            gc.setStroke(edge);
+            gc.setLineWidth(3);
+            gc.strokeRect(x + 2, y + 2, SQUARE_SIZE - 4, SQUARE_SIZE - 4);
+            gc.setLineWidth(1);
+
+            gc.setFont(Font.font("Georgia", FontWeight.BOLD, 9));
+            gc.setFill(edge);
+            gc.fillText(shared ? "◆ SHARED" : "◆ PRIVATE", x + 6, y + 14);
+
+            double pip = 9;
+            for (int i = 0; i < sq.getChargesRemaining(); i++) {
+                gc.setFill(edge);
+                gc.fillOval(x + 7 + i * (pip + 4), y + SQUARE_SIZE - 7 - pip, pip, pip);
+            }
+        }
+    }
+
     private void highlight(Position p, Color c) {
         gc.setFill(c);
         gc.fillRect(colToX(p.col), rowToY(p.row), SQUARE_SIZE, SQUARE_SIZE);
@@ -805,6 +864,10 @@ public class BoardView extends BorderPane implements Game.GameListener {
         if (storeOverlay.isVisible()) {
             refreshStoreLabels();
         }
+    }
+
+    private void showEvent(String message) {
+        eventLabel.setText(message);
     }
 
     private void clearSelection() {
@@ -917,6 +980,49 @@ public class BoardView extends BorderPane implements Game.GameListener {
             } else {
                 statusLabel.setText("♛  " + name + " is in checkmate — may escape via Crown Transfer!");
             }
+            redraw();
+        });
+    }
+
+    @Override
+    public void onTributeAwarded(int playerId, int coins) {
+        Platform.runLater(() -> {
+            if (playerId == controller.getLocalPlayerId()) {
+                showEvent("💰 Tribute: you receive +" + coins + " for your lost piece");
+            } else {
+                String name = controller.getGame().getPlayer(playerId).getName();
+                showEvent("💰 " + name + " receives +" + coins + " Tribute");
+            }
+            updateClockLabels();
+        });
+    }
+
+    @Override
+    public void onStrataCollected(int playerId, StrataManager.StrataCollection c) {
+        Platform.runLater(() -> {
+            int     myId        = controller.getLocalPlayerId();
+            boolean mine        = playerId == myId;
+            boolean visibleToMe = c.visibleTo() == StrataSquare.SHARED || c.visibleTo() == myId;
+
+            // The opponent using THEIR private square stays hidden from us.
+            if (!mine && !visibleToMe) {
+                updateClockLabels();
+                redraw();
+                return;
+            }
+
+            String left = c.exhausted() ? " — depleted!" : " (" + c.chargesRemaining() + " left)";
+            if (mine) {
+                String kind = visibleToMe
+                    ? "Strata Square at " + c.position()
+                    : "hidden Strata Square";
+                showEvent("◆ You collected +" + c.coins() + " from a " + kind + left);
+            } else {
+                String name = controller.getGame().getPlayer(playerId).getName();
+                showEvent("◆ " + name + " collected +" + c.coins()
+                    + " from a Strata Square at " + c.position() + left);
+            }
+            updateClockLabels();
             redraw();
         });
     }
