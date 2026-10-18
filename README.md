@@ -1,253 +1,453 @@
-# ♟️ StrataChess
+# StrataChess
 
-> A chess-inspired, LAN-based two-player strategy game built in Java.  
-> StrataChess extends classical chess with an **economy system**, **deployable traps**, and a **one-time crown transfer** mechanic — fundamentally reshaping how the endgame is played.
+**A tactical chess variant built around territory, traps, resource management, and strategic risk.**
 
----
+StrataChess expands traditional chess with a dynamic battlefield. Players must do more than calculate moves: they must manage their coins, control territory, exploit Strata Squares, deploy traps, and protect their Crown Holder.
 
-## 🧠 Why This Project Exists
+The project combines a custom Java game engine, a JavaFX client, TCP-based multiplayer networking, and a FastAPI backend backed by PostgreSQL.
 
-StrataChess is not just a game — it is a **learning vehicle**. Every file in this repository is written to teach a specific concept in software engineering:
-
-| File / Layer | Concept You Will Learn |
-|---|---|
-| `Position.java` | Value Objects and immutability |
-| `Action.java` | Serialization and the Command Pattern |
-| `Piece.java` | Abstract classes and polymorphism |
-| `Board.java` | 2D arrays and coordinate systems |
-| `RulesEngine.java` | Pure functions and separation of concerns |
-| `Game.java` | Finite State Machines |
-| `GameController.java` | The MVC Controller — single entry point |
-| `BoardView.java` | Event-driven GUI programming + animations |
-| `Server.java / Client.java` | TCP sockets and networked applications |
-
-Read the comments inside each file. They explain *why* a pattern was chosen before explaining *how* it works.
+> **Development status:** Active development. Core game mechanics, multiplayer networking, and database integration are being developed incrementally. The web frontend and account-related features are planned work, not current capabilities.
 
 ---
 
-## 📁 Project Structure
+## Table of Contents
 
-```
-StrataChess/
-├── README.md                  ← You are here
-├── .gitignore                 ← Tells Git which files to ignore
-├── compile.sh                 ← One-command build script
-├── run_server.sh              ← Start the game as host
-├── run_client.sh              ← Join a game as guest
-├── assets/
-│   └── music/
-│       └── README.md          ← Where to place your .mp3 music file
-└── src/
-    ├── shared/
-    │   ├── Position.java      ← (row, col) coordinate — used everywhere
-    │   └── Action.java        ← Represents one player action (move/trap/crown)
-    ├── engine/
-    │   ├── Piece.java         ← Abstract base class for all pieces
-    │   ├── pieces/
-    │   │   ├── King.java
-    │   │   ├── Queen.java
-    │   │   ├── Rook.java
-    │   │   ├── Bishop.java
-    │   │   ├── Knight.java
-    │   │   └── Pawn.java
-    │   ├── Board.java         ← 8×8 grid, holds pieces and traps
-    │   ├── Trap.java          ← Trap placement, activation, visibility
-    │   ├── Economy.java       ← Coin tracking and awards on capture
-    │   ├── RulesEngine.java   ← Check, checkmate, legal move filtering
-    │   ├── Player.java        ← Player state, timer, crown status
-    │   └── Game.java          ← State machine coordinating everything
-    ├── controller/
-    │   └── GameController.java ← The single entry point for all game actions
-    ├── view/
-    │   ├── Main.java          ← JavaFX Application entry point
-    │   ├── BoardView.java     ← Renders the board, handles clicks, animations
-    │   └── MusicPlayer.java   ← Background music manager
-    └── networking/
-        ├── Server.java        ← Authoritative host — validates all actions
-        └── Client.java        ← Connects to host, sends and receives actions
-```
+- [Overview](#overview)
+- [Game Mechanics](#game-mechanics)
+  - [The Crown Holder](#the-crown-holder)
+  - [Economy and Tribute](#economy-and-tribute)
+  - [Strata Squares](#strata-squares)
+  - [Trap System](#trap-system)
+  - [Crown Transfer](#crown-transfer)
+- [Architecture](#architecture)
+- [Technology Stack](#technology-stack)
+- [Getting Started](#getting-started)
+- [Running the Backend](#running-the-backend)
+- [API Overview](#api-overview)
+- [Testing](#testing)
+- [Project Structure](#project-structure)
+- [Roadmap](#roadmap)
 
 ---
 
-## 🎮 Game Rules
+## Overview
 
-### Board & Setup
+Traditional chess rewards positional understanding, tactical calculation, and long-term planning. StrataChess preserves those foundations while introducing mechanics that create additional strategic decisions.
 
-The game is played on a standard **8×8 grid**. Pawns start fixed on row 2 for each player. The back row (row 1) allows **custom piece arrangement** — you can place your non-pawn pieces in any order before the game begins.
+Players must balance three competing priorities:
 
-### Turn Structure
+- **Tactical superiority:** Develop pieces, capture opponents, and create threats.
+- **Economic management:** Earn and spend coins efficiently.
+- **Territorial control:** Use Strata Squares and strategically place traps within permitted territory.
 
-Each turn allows exactly **one action**. Choose between:
+Every resource has an opportunity cost. Spending coins on a trap, for example, means those coins cannot be used for another strategic action.
 
-1. **Moving a piece** to a valid square.
-2. **Buying and placing a trap** (costs 3 coins — uses your whole turn).
-3. **Executing a crown transfer** (once per game — uses your whole turn).
+## Game Mechanics
 
-### Movement
+### The Crown Holder
 
-Pieces follow **standard chess movement rules** with these simplifications:
+Each player has a designated **Crown Holder**, which is central to the game's king-safety and special-action mechanics.
 
-- En passant is **not** implemented.
-- Castling is **not** implemented.
-- Pawn promotion **automatically** promotes to a Queen.
-- All other movement (Pawn, Knight, Bishop, Rook, Queen, King) follows standard chess exactly.
+- The Crown Holder is tracked independently of the underlying piece type.
+- Its position is relevant to check detection and legal-action validation.
+- The Crown Holder receives a special reward when collecting a Strata Square.
+- It can survive an enemy trap that would normally eliminate a piece.
 
-A move that places your own crown holder in check is **illegal**.
+The Crown Holder should not be confused with an ordinary King: Crown Holder status is a separate gameplay property.
 
-### Economy System
+### Economy and Tribute
 
-Earn coins by capturing opponent pieces:
+StrataChess has two intended sources of income:
 
-| Captured Piece | Coins Awarded |
-|---|---|
-| Pawn | 1 coin |
-| Knight | 2 coins |
-| Bishop | 2 coins |
-| Rook | 3 coins |
-| Queen | 4 coins |
+1. **Tribute**
+2. **Strata Squares**
 
-> Killing a piece with a trap does **not** award coins. Coins come only from direct captures.
+There is no capture bounty or passive income in the current economy design.
+
+#### Tribute
+
+When a piece is lost in a normal capture, the player who lost that piece receives Tribute. The capturing player does not receive a capture bounty.
+
+| Piece lost | Standard value | Tribute received |
+|---|---:|---:|
+| Pawn | 1 | 1 coin |
+| Knight | 3 | 2 coins |
+| Bishop | 3 | 2 coins |
+| Rook | 5 | 3 coins |
+| Queen | 9 | 5 coins |
+| King | 0 | 0 coins |
+
+Tribute is calculated as the ceiling of half the captured piece's standard value.
+
+Crown Holder status does not change Tribute. The reward is based on the underlying piece type. Trap eliminations do not award Tribute.
+
+#### Spending coins
+
+Coins are used to fund special actions, including:
+
+- **Trap placement:** 3 coins.
+- **Crown Transfer:** 5 coins.
+
+Players must weigh immediate tactical advantages against the cost of future opportunities.
+
+### Strata Squares
+
+Strata Squares are limited-use resource locations placed on the board.
+
+A game contains three Strata Squares:
+
+- One private to White.
+- One private to Black.
+- One shared between both players.
+
+Each square has three available charges. A square disappears after its third successful collection.
+
+#### Visibility
+
+- White can see White's private square and the shared square.
+- Black can see Black's private square and the shared square.
+- A player's private square is not visible to the opponent through the normal game view.
+
+#### Rewards
+
+| Piece entering the square | Reward |
+|---|---:|
+| Knight, Bishop, Rook, or Queen | +1 coin |
+| Crown Holder, regardless of underlying piece type | +2 coins |
+| Pawn or non-Crown Holder King | 0 coins |
+
+A reward is triggered by entering a square, not by remaining on it. Each successful collection consumes one charge. The opponent can collect any charges that remain on a shared square.
+
+A normal capture and a Strata Square collection can both award their respective effects when a move satisfies both conditions.
+
+For multiplayer consistency, the host supplies a random seed so both clients can generate the same Strata Square layout.
 
 ### Trap System
 
-- Each trap costs **3 coins**.
-- You may own a **maximum of 3 traps** total across the entire game.
-- Traps can only be placed on **empty squares in your territory** (see Territory Shrink below).
-- A trap **destroys** any opponent piece that steps on it — except the king (who survives but destroys the trap).
-- Traps are **visible to you** and **visible to the opponent's king** within a 1-square radius. All other opponent pieces cannot see them.
+Traps are tactical hazards that punish careless movement and can influence how players approach contested territory.
 
-**Territory Shrink** — placement zones tighten every 15 total turns:
+#### Placement rules
 
-| Phase | Total Turns | Rows Available |
-|---|---|---|
-| 1 | 1–14 | 4 rows (your half) |
-| 2 | 15–29 | 3 rows |
-| 3 | 30–44 | 2 rows |
-| 4 | 45+ | 1 row (home row only) |
+- Each trap costs 3 coins.
+- Each player has a maximum of three lifetime trap deployments.
+- A trap cannot be placed on a square occupied by a piece.
+- Placement is restricted to the player's permitted territory.
+- An invalid placement should not consume coins, a deployment, or a turn.
+
+Trap territory is designed to expand as a player completes turns. The exact rank-by-rank progression is still being verified against the current implementation.
+
+#### Trap interactions
+
+| Interaction | Intended result |
+|---|---|
+| An ordinary piece enters an enemy trap | The piece is eliminated and the trap disappears. |
+| The Crown Holder enters an enemy trap | The Crown Holder survives and the trap disappears. |
+| A player's piece enters its own trap | The piece survives and the trap remains. |
+| A player attempts to place a trap on their own trap | The placement is invalid. |
+| A player places a trap on an enemy trap | A valid trap-collision action; the existing trap is destroyed and the action consumes its cost and deployment. |
+
+Trap eliminations do not award Tribute.
+
+#### Trap visibility
+
+Trap information is intentionally asymmetric:
+
+- A player can always see their own traps.
+- An opponent's trap can be revealed to the Crown Holder when it is within one square in any direction, including diagonally.
+- Other enemy pieces do not reveal traps through this rule.
+
+This creates a scouting and information-management component in addition to the direct tactical effect of traps.
 
 ### Crown Transfer
 
-Once per game, you may transfer the "crown" (the win-condition status) from your King to another non-pawn original piece:
+Crown Transfer is a special, one-time action that moves Crown Holder status to another eligible friendly piece.
 
-- The **target piece** becomes the new King — it moves like a King, is subject to check/checkmate, and is the win target.
-- The **original King** becomes a normal piece — still moves like a King, but can be captured like any other piece.
-- Cannot be used while **currently in check**.
-- Costs your entire turn.
+Rules include:
 
-### Win Condition
+- The action costs 5 coins.
+- It can be used only once per player.
+- The target must be a friendly piece.
+- Pawns and the current Crown Holder are ineligible targets.
+- The action cannot be used while the player is in check.
 
-The game ends when the **current crown holder** is in checkmate.
-
-### Timer
-
-Each player has **7 minutes** on their personal clock. The clock only ticks on your turn. Reach zero and you lose immediately.
+Crown Transfer allows a player to change which piece carries the Crown Holder role, creating an additional layer of tactical and positional planning.
 
 ---
 
-## 🏗️ Architecture: Why MVC?
+## Architecture
 
-This project uses **Model-View-Controller (MVC)** — one of the most widely-used patterns in software engineering. Here is why:
+StrataChess separates the game rules from the interface, networking, and persistence layers.
 
-**The problem MVC solves:** Imagine writing your game so that the board-drawing code also contains the checkmate logic, which also talks to the network. When you want to fix a bug in checkmate detection, you are wading through GUI rendering code. This is called **tight coupling** — and it makes projects unmaintainable.
+### Game engine
 
-**The MVC solution:**
-- The **Model** (engine layer) knows nothing about graphics or networking. It just manages game state.
-- The **View** (BoardView) knows nothing about rules. It just draws whatever state it is given.
-- The **Controller** (GameController) is the translator — it receives an action, asks the Model to validate it, then tells the View to update.
+The Java engine contains the core game model and rules:
 
-The result: you can replace the entire GUI with a terminal interface by only changing the View. The engine never needs to change.
+- Board and piece representation.
+- Move validation and king-safety checks.
+- Trap placement and trap interactions.
+- Economy and Tribute calculations.
+- Strata Square generation and collection.
+- Crown Holder tracking and Crown Transfer.
+- Turn and game-state management.
+
+The engine is intended to remain independent of the user interface and database. Game rules should be validated by the engine rather than trusted to client-side presentation code.
+
+### Client and networking
+
+The current client uses JavaFX.
+
+The multiplayer implementation uses TCP networking, with a host/client model for exchanging game actions. The host is responsible for coordinating the match and its associated database writes in the current integration.
+
+A seeded Strata Square setup helps ensure both clients begin with a consistent board configuration.
+
+The planned HTML/CSS/JavaScript frontend will require a browser-compatible networking layer, such as WebSockets, rather than connecting directly to the existing raw TCP server.
+
+### Backend and persistence
+
+The backend uses FastAPI to expose HTTP endpoints for player registration, game creation, and move-history recording.
+
+PostgreSQL stores persistent records, separating match history from the in-memory game state.
+
+The intended responsibility split is:
+
+- **Java engine:** Validates and applies game actions.
+- **Client:** Displays the game and sends player actions.
+- **Networking layer:** Exchanges actions between players.
+- **FastAPI:** Provides HTTP access to persistent game data.
+- **PostgreSQL:** Stores player, game, and move records.
+
+The current API is a persistence layer, not a complete authentication or authoritative online-game service.
 
 ---
 
-## 🔌 Tech Stack
+## Technology Stack
 
-| Technology | Why We Chose It |
+| Layer | Technology |
 |---|---|
-| **Java 17** | Strong OOP support, widely taught, large standard library |
-| **JavaFX 17** | Native Java GUI — no external frameworks needed |
-| **Java Sockets (TCP)** | Simple, reliable LAN communication |
-| **Manual javac** | Forces understanding of compilation — no build tool magic |
+| Language | Java |
+| Desktop interface | JavaFX |
+| Build system | Gradle |
+| Multiplayer transport | TCP sockets |
+| Backend framework | FastAPI |
+| Backend language | Python |
+| Database | PostgreSQL |
+| Backend database driver | Psycopg |
+| API validation | Pydantic |
+| Testing | JUnit 5 |
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
-### Run with Gradle (recommended)
+### Prerequisites
 
-The only prerequisite is a JDK 17 or newer (`java -version` to check).
-Gradle and JavaFX are downloaded automatically on the first run — no JavaFX SDK download needed.
+Install the following:
+
+- Git
+- JDK 17 or later
+- Python compatible with the backend dependencies
+- PostgreSQL, if you want to use database-backed features
+
+The Gradle wrapper downloads the required Gradle distribution and the configured JavaFX dependencies. A separate manual JavaFX SDK installation should not be necessary for the Gradle workflow.
+
+### Clone the repository
 
 ```bash
-# Windows
-.\gradlew.bat run
+git clone https://github.com/Daksh-Khandelwal-Rain/StrataChess.git
+cd StrataChess
+```
 
-# macOS / Linux
+### Run the JavaFX client
+
+**Windows PowerShell:**
+
+```powershell
+.\gradlew.bat run
+```
+
+**macOS/Linux:**
+
+```bash
 ./gradlew run
 ```
 
-`.\gradlew.bat build` (or `./gradlew build`) compiles without launching.
+### Build the project
 
-### Manual Build (without Gradle)
+**Windows PowerShell:**
 
-#### Prerequisites
-
-- Java 17+ installed (`java --version` to check)
-- JavaFX 17 SDK downloaded and placed at `lib/javafx/`
-- Two players on the same Wi-Fi network (or two terminals on one machine)
-
-#### One-Command Build
-
-```bash
-chmod +x compile.sh run_server.sh run_client.sh
-./compile.sh
+```powershell
+.\gradlew.bat build
 ```
 
-#### Start the Server (Host)
+**macOS/Linux:**
 
 ```bash
-./run_server.sh
-# Prints your local IP — share it with the other player
+./gradlew build
 ```
 
-#### Join as Client
-
-```bash
-./run_client.sh <host-ip-address>
-# Use "localhost" if both players are on the same machine
-```
+The project targets Java 17 bytecode through Gradle and uses JavaFX 17.0.13.
 
 ---
 
-## 🎵 Music
+## Running the Backend
 
-StrataChess plays **epic orchestral background music** with a GoT-style vibe. To add music:
+The FastAPI application is located in `backend/`.
 
-1. Find a royalty-free epic orchestral `.mp3` (see `assets/music/README.md` for suggestions).
-2. Place it at `assets/music/theme.mp3`.
-3. The `MusicPlayer.java` will automatically detect and loop it.
+### 1. Configure PostgreSQL
+
+Create and configure a PostgreSQL database for the project. Ensure that the database contains the tables expected by the API:
+
+- `players`
+- `games`
+- `moves`
+
+The API expects these tables to support player registration, game creation, and move-history insertion.
+
+**Configuration note:** The current database connection settings are defined in the backend source. Before sharing or deploying the backend, move database credentials into environment variables and ensure secrets are not committed to Git.
+
+### 2. Install backend dependencies
+
+From the repository root, enter the backend directory:
+
+```powershell
+cd backend
+```
+
+Install the dependencies used by the application in your chosen Python environment:
+
+```powershell
+python -m pip install fastapi "uvicorn[standard]" psycopg pydantic
+```
+
+### 3. Start the API
+
+```powershell
+uvicorn main:app --reload
+```
+
+The local API should be available at:
+
+```text
+http://127.0.0.1:8000
+```
+
+Interactive API documentation is available at:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+The backend requires a working PostgreSQL connection before database-backed requests can succeed.
 
 ---
 
-## 🗺️ Roadmap
+## API Overview
 
-| Phase | Days | Focus |
+The current backend exposes the following core operations:
+
+| Method | Endpoint | Purpose |
 |---|---|---|
-| Phase 1 — Engine | 1–8 | Board, pieces, check/checkmate, game state |
-| Phase 2 — Networking | 9–11 | LAN sockets, action sync, server authority |
-| Phase 3 — GUI | 12–17 | JavaFX board, click-to-move, timer display |
-| Phase 4 — Custom Rules | 18–22 | Traps, economy, crown transfer |
-| Phase 5 — Polish | 23–25 | Bug fixing, demo prep, cleanup |
+| `POST` | `/players` | Register a player using a username. |
+| `POST` | `/games` | Create a game using White and Black player IDs. |
+| `POST` | `/games/{game_id}/moves` | Record a move or action event for a game. |
+
+The move-recording payload includes the player ID, source square, destination square, move number, and move type.
+
+For the exact request and response schemas, validation behavior, and error responses, use the interactive documentation at `/docs`.
+
+### Current limitations
+
+The current API should not be treated as a complete online-game backend. Authentication, session management, authorization, and a full game lifecycle API are not yet documented as implemented capabilities. The API also does not replace the Java engine's responsibility for validating game rules.
 
 ---
 
-## 🌿 Branching & Contribution
+## Testing
 
-- Never push directly to `main`.
-- Branch naming: `feature/trap-system`, `fix/checkmate-bug`, `engine/rook-movement`
-- Open a Pull Request and get one review before merging.
-- Write commit messages in present tense: `Add getValidMoves() to Rook`
+Run the automated Java tests with the Gradle wrapper.
+
+**Windows PowerShell:**
+
+```powershell
+.\gradlew.bat clean test
+```
+
+**macOS/Linux:**
+
+```bash
+./gradlew clean test
+```
+
+The test suite covers engine behavior and regression-sensitive mechanics, including board operations, move rules, traps, and economy calculations.
+
+When changing game rules, add or update regression tests so the implementation remains consistent with the intended rules.
 
 ---
 
-> Built with Java as a college project. Core game logic written by the team — no AI-generated engine code.  
-> Comments and architecture guidance assisted by Claude (Anthropic).
+## Project Structure
+
+The repository currently uses a non-standard Java source layout, with package directories directly under `src/`.
+
+```text
+StrataChess/
+├── src/
+│   ├── engine/          # Board, pieces, rules, economy and game state
+│   ├── controller/      # Game coordination and client-side orchestration
+│   ├── networking/      # TCP networking and API integration
+│   ├── view/            # JavaFX interface
+│   ├── shared/          # Shared action and position models
+│   └── test/            # Regression and engine tests
+├── backend/
+│   ├── main.py          # FastAPI application and endpoints
+│   └── database.py      # PostgreSQL connection helper
+├── gradlew
+├── gradlew.bat
+├── build.gradle
+└── README.md
+```
+
+Some implementation details may evolve as the engine, backend, and frontend are refactored.
+
+---
+
+## Roadmap
+
+The project is being developed incrementally.
+
+### Game engine
+
+- Verify and stabilize the revised trap-territory progression.
+- Expand regression coverage for special actions and edge cases.
+- Keep rule validation centralized in the engine.
+
+### Backend and persistence
+
+- Move database configuration and credentials into environment variables.
+- Align API payloads, database schema, and client integration.
+- Introduce a complete game lifecycle and action-history API.
+- Add authentication, sessions, and appropriate authorization controls.
+
+### Frontend and multiplayer
+
+- Develop the planned HTML/CSS/JavaScript frontend.
+- Introduce a browser-compatible networking transport.
+- Preserve consistent game state between players.
+- Build controlled access to match history and replays.
+
+### Quality and maintainability
+
+- Document the architecture and game rules in dedicated documentation.
+- Keep tests aligned with the implemented rules.
+- Separate gameplay changes from infrastructure and documentation changes.
+
+---
+
+## Contributing
+
+StrataChess is actively evolving. Before contributing:
+
+1. Understand the existing engine and the relevant game rules.
+2. Keep unrelated game logic, frontend, and backend changes separate.
+3. Add regression tests when changing engine behavior.
+4. Run the test suite before submitting changes.
+5. Use a feature branch and submit a pull request rather than pushing experimental work directly to `main`.
+
